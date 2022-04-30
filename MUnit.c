@@ -45,7 +45,7 @@ sem_t empty_sslots;
 sem_t filled_sslots;
 /* declare global ints */
 int input;
-int end_time;
+int end_time = 1;
 /* declare queues */
 Queue_Info processing_queue;
 Queue_Info sending_queue;
@@ -85,11 +85,11 @@ int main()
     check_error(res, "sem_init input_ready");
     res = sem_init(&input_taken, 0, 0);
     check_error(res, "sem_init input_taken");
-    res = sem_init(&empty_pslots, 0, 0);
+    res = sem_init(&empty_pslots, 0, 5);
     check_error(res, "sem_init empty_pslots");
     res = sem_init(&filled_pslots, 0, 0);
     check_error(res, "sem_init filled_pslots");
-    res = sem_init(&empty_sslots, 0, 0);
+    res = sem_init(&empty_sslots, 0, 5);
     check_error(res, "sem_init empty_sslots");
     res = sem_init(&filled_sslots, 0, 0);
     check_error(res, "sem_init filled_sslots");
@@ -116,10 +116,13 @@ int main()
 
 void *user_input(void *arg)
 {
+    int res;
     end_time = 1;
     while (_get_input()) {
-        sem_post(&input_ready);
-        sem_wait(&input_taken);
+        res = sem_post(&input_ready);
+        check_error(res, "sem_post input_ready");
+        res = sem_wait(&input_taken);
+        check_error(res, "sem_wait input_taken");
     }
     end_time = -1;
     pthread_exit(NULL);
@@ -146,14 +149,41 @@ int _get_input()
 
 void *add_processing_queue(void *arg)
 {
-    pthread_mutex_lock(&lock_plist);
+    while (end_time != -1) {
+        sem_wait(&input_ready);
+        sem_wait(&empty_pslots);
 
-    pthread_mutex_unlock(&lock_plist);
+        int new_input;
+        pthread_mutex_lock(&lock_input);
+        new_input = input;
+        pthread_mutex_unlock(&lock_input);
+
+        pthread_mutex_lock(&lock_plist);
+        Qnode *new_node = (Qnode *)malloc(sizeof(Qnode));
+        new_node->data = new_input;
+        enqueue(&processing_queue, new_node);
+        display_list(&processing_queue);
+        pthread_mutex_unlock(&lock_plist);
+
+        sem_post(&input_taken);
+        sem_post(&filled_pslots);
+    }
+    pthread_exit(NULL);
 }
 
 
 void *process_nodes(void *arg)
 {
+    while (end_time != -1) {
+        sem_wait(&filled_pslots);
+
+        Qnode *new_node;
+        pthread_mutex_lock(&lock_plist);
+        new_node = dequeue(&processing_queue);
+        pthread_mutex_unlock(&lock_plist);
+
+        sem_post(&empty_pslots);
+    }
 }
 
 

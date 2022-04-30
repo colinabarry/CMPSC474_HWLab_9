@@ -48,7 +48,7 @@
 
 //  }
 
-void DisplayList(Queue_Info *Q)
+void display_list(Queue_Info *Q)
 {
     Qnode *t;
 
@@ -85,7 +85,7 @@ Qnode *search(Queue_Info *Q, int data)
     return NULL;
 }
 
-void Enqueue(Queue_Info *Q, Qnode *p)
+void enqueue(Queue_Info *Q, Qnode *p)
 {
     if (p == NULL) {
         perror("No node to add ");
@@ -103,7 +103,7 @@ void Enqueue(Queue_Info *Q, Qnode *p)
     return;
 }
 
-Qnode *Dequeue(Queue_Info *Q)
+Qnode *dequeue(Queue_Info *Q)
 {
     if (Q == NULL) {
         perror("No Queue to search");
@@ -122,7 +122,7 @@ Qnode *Dequeue(Queue_Info *Q)
     return p;
 }
 
-Qnode *Pop(Queue_Info *S)
+Qnode *pop(Queue_Info *S)
 {
     if (S == NULL) {
         perror("No Stack to Pop");
@@ -133,5 +133,5 @@ Qnode *Pop(Queue_Info *S)
         return NULL;
     }
 
-    return Dequeue(S);
+    return dequeue(S);
 }

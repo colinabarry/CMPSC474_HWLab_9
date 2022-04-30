@@ -13,15 +13,15 @@ typedef struct Queue_Info {
     Qnode *queue;
 } Queue_Info;
 
-void DisplayList(Queue_Info *Q);
+void display_list(Queue_Info *Q);
 
 Qnode *search(Queue_Info *Q, int data);
 
-void Enqueue(Queue_Info *Q, Qnode *p);
+void enqueue(Queue_Info *Q, Qnode *p);
 
-Qnode *Dequeue(Queue_Info *Q);
+Qnode *dequeue(Queue_Info *Q);
 
-Qnode *Pop(Queue_Info *S);
+Qnode *pop(Queue_Info *S);
 
 
 #endif
