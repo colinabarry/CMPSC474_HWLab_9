@@ -1,0 +1,18 @@
+---
+Language: Cpp
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+BreakBeforeBraces: Linux
+ColumnLimit: 80
+IndentWidth: 4
+JavaScriptQuotes: Single
+JavaScriptWrapImports: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2
+PointerAlignment: Right
+ReflowComments:  true
+SortIncludes:    CaseSensitive
+TabWidth:        4
+UseCRLF:         false
+UseTab:          Never
+...

@@ -12,17 +12,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// #define DEBUG
+#define DEBUG
 #pragma region /* DEBUG_PRINT macro */
 #ifdef DEBUG
-#define DEBUG_PRINT printf
+#define DEBUG_PRINT                                                            \
+    printf(">>>");                                                             \
+    printf
 #else
 #define DEBUG_PRINT(...)
 #endif
 #pragma endregion
-
-#define SHM_NAME "calculated_data"
-
 
 /* declare thread functions */
 void *user_input(void *arg);
@@ -70,7 +69,6 @@ int main()
     sending_queue.last = NULL;
     sending_queue.queue = NULL;
 
-
     /* initialize the three required mutex locks and check for errors */
     res = pthread_mutex_init(&lock_input, NULL);
     check_error(res, "pthread_mutex_init lock_input");
@@ -78,7 +76,6 @@ int main()
     check_error(res, "pthread_mutex_init lock_plist");
     res = pthread_mutex_init(&lock_slist, NULL);
     check_error(res, "pthread_mutex_init lock_slist");
-
 
     /* initialize the six required semaphores and check for errors */
     res = sem_init(&input_ready, 0, 0);
@@ -94,7 +91,6 @@ int main()
     res = sem_init(&filled_sslots, 0, 0);
     check_error(res, "sem_init filled_sslots");
 
-
     /* create the four required threads and check for errors */
     res = pthread_create(&pt_user_input, NULL, user_input, NULL);
     check_error(res, "pthread_create user_input");
@@ -109,6 +105,16 @@ int main()
     /* join threads and exit the program*/
     res = pthread_join(pt_user_input, NULL);
     check_error(res, "pthread_join user_input");
+    DEBUG_PRINT("JOINED user_input\n");
+    res = pthread_join(pt_add_processing_queue, NULL);
+    check_error(res, "pthread_join add_processing_queue");
+    DEBUG_PRINT("JOINED add_processing_queue\n");
+    res = pthread_join(pt_process_nodes, NULL);
+    check_error(res, "pthread_join process_nodes");
+    DEBUG_PRINT("JOINED process_nodes\n");
+    res = pthread_join(pt_send_to_smem, NULL);
+    check_error(res, "pthread_join send_to_smem");
+    DEBUG_PRINT("JOINED send_to_smem\n");
 
     exit(EXIT_SUCCESS);
 }
@@ -124,7 +130,10 @@ void *user_input(void *arg)
         res = sem_wait(&input_taken);
         check_error(res, "sem_wait input_taken");
     }
+    DEBUG_PRINT("SETTING end_time = -1\n");
     end_time = -1;
+    sem_post(&input_ready);
+    DEBUG_PRINT("EXITING user_input\n");
     pthread_exit(NULL);
 }
 
@@ -162,12 +171,13 @@ void *add_processing_queue(void *arg)
         Qnode *new_node = (Qnode *)malloc(sizeof(Qnode));
         new_node->data = new_input;
         enqueue(&processing_queue, new_node);
-        display_list(&processing_queue);
+        // display_list(&processing_queue);
         pthread_mutex_unlock(&lock_plist);
 
         sem_post(&input_taken);
         sem_post(&filled_pslots);
     }
+    DEBUG_PRINT("EXITING add_processing_queue\n");
     pthread_exit(NULL);
 }
 
@@ -177,16 +187,67 @@ void *process_nodes(void *arg)
     while (end_time != -1) {
         sem_wait(&filled_pslots);
 
-        Qnode *new_node;
+        Qnode *node_to_process;
         pthread_mutex_lock(&lock_plist);
-        new_node = dequeue(&processing_queue);
+        node_to_process = dequeue(&processing_queue);
         pthread_mutex_unlock(&lock_plist);
 
         sem_post(&empty_pslots);
+
+        int c_val = node_to_process->data;
+        int f_val = (int)(((float)c_val * 9.0) / 5.0) + 32.0;
+        // DEBUG_PRINT("%d C = %d F\n", c_val, f_val);
+        fflush(stdout);
+
+        sem_wait(&empty_sslots);
+
+        pthread_mutex_lock(&lock_slist);
+        Qnode *node_to_send = (Qnode *)malloc(sizeof(Qnode));
+        node_to_send->data = f_val;
+        enqueue(&sending_queue, node_to_send);
+        // display_list(&sending_queue);
+        pthread_mutex_unlock(&lock_slist);
+
+        sem_post(&filled_sslots);
     }
+    DEBUG_PRINT("EXITING process_nodes\n");
+    pthread_exit(NULL);
 }
 
 
 void *send_to_smem(void *arg)
 {
+    const int SHM_SIZE = sizeof(Qnode) * 50;
+    const char *SHM_NAME = "calculated_data";
+    int shm_id;
+    int offset = 0;
+    void *ptr;
+
+    shm_id = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    ftruncate(shm_id, SHM_SIZE);
+
+    ptr = mmap(0, SHM_SIZE, PROT_WRITE | PROT_READ, MAP_SHARED, shm_id, 0);
+    if (ptr == MAP_FAILED) {
+        perror("mmap MUnit");
+        exit(EXIT_FAILURE);
+    }
+
+    while (end_time != -1) {
+        sem_wait(&filled_sslots);
+
+        pthread_mutex_lock(&lock_slist);
+        Qnode *node_to_share = dequeue(&sending_queue);
+        ptr = node_to_share;
+        offset += sizeof(Qnode);
+        if (offset <= SHM_SIZE - sizeof(Qnode)) {
+            DEBUG_PRINT("data: %d\n", ((Qnode *)ptr)->data);
+            ptr += offset;
+        }
+        pthread_mutex_unlock(&lock_slist);
+        sem_post(&empty_sslots);
+    }
+    // ptr = NULL;
+    DEBUG_PRINT("SHM Data: %d\n", ((Qnode *)ptr)->data);
+    DEBUG_PRINT("EXITING send_to_smem\n");
+    pthread_exit(NULL);
 }
